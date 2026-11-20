@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>外星建筑爬行关卡 · 过棱动作求解与回放核验</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #0b1020; color: #dfe7f5; }
+  #view { position: absolute; inset: 0; }
+  #panel {
+    position: absolute; top: 12px; left: 12px; width: 318px; max-height: calc(100vh - 24px);
+    overflow-y: auto; background: rgba(13, 20, 38, 0.92); border: 1px solid #2a3a5e;
+    border-radius: 10px; padding: 14px; font-size: 12.5px; line-height: 1.45;
+  }
+  #panel h1 { font-size: 15px; margin: 0 0 8px; color: #8fd3ff; }
+  #panel h2 { font-size: 13px; margin: 12px 0 6px; color: #ffd166; border-bottom: 1px solid #2a3a5e; padding-bottom: 3px; }
+  .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+  .row label { flex: 0 0 78px; }
+  .row input[type=range] { flex: 1; }
+  .row span { flex: 0 0 52px; text-align: right; color: #9be7a1; font-variant-numeric: tabular-nums; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  button {
+    background: #1d3055; color: #dfe7f5; border: 1px solid #3a558a; border-radius: 6px;
+    padding: 5px 10px; cursor: pointer; font-size: 12px;
+  }
+  button:hover { background: #2a4578; }
+  #log {
+    width: 100%; height: 132px; box-sizing: border-box; resize: vertical;
+    background: #0a1120; color: #cfe3ff; border: 1px solid #2a3a5e; border-radius: 6px;
+    padding: 6px; font-size: 11.5px; font-family: inherit;
+  }
+  #frameInfo { margin-top: 6px; min-height: 30px; color: #9be7a1; font-size: 11.5px; word-break: break-all; }
+  #frameSlider { width: 100%; }
+  .legend { display: grid; grid-template-columns: 14px 1fr; gap: 4px 6px; align-items: center; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; }
+  .hint { color: #8fa3c4; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/controls/": "./vendor/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="view"></div>
+<div id="panel">
+  <h1>外星建筑爬行关卡</h1>
+  <div class="hint">左键拖拽旋转视角 · 滚轮缩放 · 右键平移 · 点击板面指定终点</div>
+
+  <h2>关卡参数（改边长会重建关卡）</h2>
+  <div class="row"><label>边长 S</label><input id="edgeScale" type="range" min="0.6" max="1.8" step="0.05" value="1.0"><span id="edgeScaleVal">1.00 S</span></div>
+  <h2>身体尺寸（单位 S）</h2>
+  <div class="row"><label>身体宽</label><input id="bodyW" type="range" min="0.2" max="1.4" step="0.01" value="0.7"><span id="bodyWVal">0.70 S</span></div>
+  <div class="row"><label>身体长</label><input id="bodyL" type="range" min="0.3" max="1.8" step="0.01" value="1.0"><span id="bodyLVal">1.00 S</span></div>
+  <div class="row"><label>身体厚</label><input id="bodyT" type="range" min="0.1" max="1.2" step="0.01" value="0.55"><span id="bodyTVal">0.55 S</span></div>
+  <div class="row"><label>跨缝距离</label><input id="maxSeam" type="range" min="0" max="1.2" step="0.02" value="0.6"><span id="maxSeamVal">0.60 S</span></div>
+  <div class="row"><label>回放速度</label><input id="speed" type="range" min="0.05" max="2" step="0.05" value="0.45"><span id="speedVal">0.45 x</span></div>
+
+  <h2>回放控制</h2>
+  <div class="btns">
+    <button id="btnPlay">播放</button>
+    <button id="btnPause">暂停</button>
+    <button id="btnBack">上一帧</button>
+    <button id="btnStep">下一帧</button>
+    <button id="btnVerify">逐步核验</button>
+    <button id="btnReplan">重新规划</button>
+    <button id="btnResetView">重置视角</button>
+  </div>
+  <input id="frameSlider" type="range" min="0" max="0" step="1" value="0" />
+  <div id="frameInfo">尚未规划路径</div>
+
+  <h2>诊断输出</h2>
+  <textarea id="log" readonly></textarea>
+
+  <h2>图例</h2>
+  <div class="legend">
+    <div class="sw" style="background:#6fa8dc"></div><div>可附着墙面（柱/折边）</div>
+    <div class="sw" style="background:#4fa3a5"></div><div>可附着顶板（柱顶/门楣/折顶）</div>
+    <div class="sw" style="background:#8fbc6f"></div><div>地面（含跨缝两块）</div>
+    <div class="sw" style="background:#9e9e9e;opacity:.5"></div><div>悬顶障碍板（禁附，翻滚净空威胁）</div>
+    <div class="sw" style="background:#7a5c9e;opacity:.6"></div><div>近距断开表皮（禁附，不连接）</div>
+    <div class="sw" style="background:#ff3333"></div><div>被拒绝的边（支撑/净空/跨缝不满足）</div>
+    <div class="sw" style="background:#33ff88"></div><div>规划采用的边</div>
+    <div class="sw" style="background:#00e5ff"></div><div>真实经过的棱与动作类型</div>
+  </div>
+</div>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
