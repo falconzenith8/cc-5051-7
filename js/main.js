@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildLevel } from './level.js';
 import { planPath, flattenPlan } from './planner.js';
 import { verifyFrames } from './replay.js';
+import { initDynDemo } from './dynDemo.js';
 
 // ---------- 可调参数 ----------
 const params = {
@@ -358,6 +359,7 @@ function animate(ts) {
   const dt = Math.min(0.05, (ts - lastTime) / 1000 || 0);
   lastTime = ts;
   controls.update();
+  dynDemo.update(dt);
   if (playState.playing && flatFrames?.length) {
     playState.acc = (playState.acc ?? 0) + dt * params.speed;
     const step = Math.floor(playState.acc);
@@ -451,5 +453,6 @@ function bindUI() {
 initScene();
 bindUI();
 rebuildLevel();
+const dynDemo = initDynDemo({ scene, camera, controls });
 flashLog('点击任意可附着墙面/顶板指定终点（禁附的半透明板不可选）。');
 requestAnimationFrame(animate);
